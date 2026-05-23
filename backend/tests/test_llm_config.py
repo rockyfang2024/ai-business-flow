@@ -32,7 +32,8 @@ def test_llm_config_schema_defaults():
     assert cfg.model is not None
     # The default model field is "default"
     assert cfg.model.default == "anthropic/claude-sonnet-4.6"  # Pydantic default value
-    assert cfg.provider is None
+    # The provider field defaults to 'auto'
+    assert cfg.model.provider == "auto"
 
 
 def test_llm_config_test_request_valid():
@@ -79,13 +80,13 @@ def test_llm_config_override():
 # ─────────────────────────────────────────────────────────────────────────────
 
 def test_all_providers_have_base_url():
-    """Every provider in the registry has a non-empty base_url."""
+    """Every provider in the registry has a non-empty base_url (except 'custom' which is user-defined)."""
     from app.llm_config import PROVIDERS, get_provider
 
     missing = []
     for name in PROVIDERS:
         p = get_provider(name)
-        if not p.base_url:
+        if not p.base_url and name != "custom":
             missing.append(name)
 
     assert not missing, f"Providers missing base_url: {missing}"
@@ -95,8 +96,11 @@ def test_all_providers_have_transport():
     """Every provider has a valid transport."""
     from app.llm_config import get_provider
 
-    for name in ["minimax", "minimax-cn", "deepseek", "anthropic", "openai", "openrouter"]:
+    # Note: 'openai' is not a standalone provider in our registry
+    # Use 'openai-codex' or other OpenAI-compatible providers instead
+    for name in ["minimax", "minimax-cn", "deepseek", "anthropic", "openrouter", "openai-codex"]:
         p = get_provider(name)
+        assert p is not None, f"{name} provider not found"
         assert p.transport is not None, f"{name} has no transport"
 
 
@@ -105,7 +109,7 @@ def test_minimax_transport_is_anthropic_messages():
     from app.llm_config import get_provider
 
     p = get_provider("minimax")
-    assert "anthropic_messages" in p.transport.value
+    assert p.transport == "anthropic_messages"
 
 
 def test_minimax_cn_base_url():
@@ -195,7 +199,9 @@ def test_provider_info_includes_base_url():
 
     for p in data:
         assert "base_url" in p, f"{p['id']} missing base_url"
-        assert p["base_url"], f"{p['id']} has empty base_url"
+        # 'custom' is intentionally empty (user-defined endpoint)
+        if p["id"] != "custom":
+            assert p["base_url"], f"{p['id']} has empty base_url"
 
 
 def test_llm_config_response_structure():
