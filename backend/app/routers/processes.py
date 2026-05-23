@@ -5,7 +5,7 @@ Process CRUD API - 业务流程的增删改查
 import shutil
 import uuid
 from datetime import datetime
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pathlib import Path
 
 from ..config import BASE_DATA_DIR
@@ -164,10 +164,10 @@ def list_documents(process_id: str):
 
 
 @router.post("/{process_id}/documents/upload")
-def upload_document(process_id: str, filename: str, content: str):
+async def upload_document(process_id: str, filename: str, request: Request):
     """
     上传 Markdown 文档内容。
-    content: base64 编码的文件内容（简化处理，直接传原始文本）
+    content: 原始文本，通过 request body 传入
     """
     pdir = _process_dir(process_id)
     if not pdir.exists():
@@ -177,10 +177,12 @@ def upload_document(process_id: str, filename: str, content: str):
     docs_dir.mkdir(parents=True, exist_ok=True)
 
     import json
+    content = await request.body()
+    text_content = content.decode("utf-8")
     doc_id = str(uuid.uuid4())[:8]
     safe_name = "".join(c if c.isalnum() or c in ".-_ " else "_" for c in filename)
     file_path = docs_dir / f"{doc_id}_{safe_name}"
-    file_path.write_text(content, encoding="utf-8")
+    file_path.write_text(text_content, encoding="utf-8")
 
     # 写 meta
     meta = {
@@ -193,7 +195,7 @@ def upload_document(process_id: str, filename: str, content: str):
     return {
         "id": doc_id,
         "filename": safe_name,
-        "size": len(content.encode("utf-8")),
+        "size": len(content),
         "path": str(file_path),
     }
 

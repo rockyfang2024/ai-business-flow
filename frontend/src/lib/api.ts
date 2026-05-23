@@ -9,7 +9,7 @@ import type {
   KnowledgeDoc,
 } from "@/types";
 
-const BASE_URL = "http://localhost:8000/api";
+const BASE_URL = "/api";
 
 async function api<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
