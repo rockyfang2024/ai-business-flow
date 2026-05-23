@@ -1,0 +1,178 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  padding: 20px 24px;
+  gap: 16px;
+}
+
+.uploadSection {
+  flex-shrink: 0;
+}
+
+.uploadRow {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.fileUpload {
+  flex-shrink: 0;
+}
+
+.uploadBtn {
+  padding: 8px 16px;
+  border-radius: 8px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.uploadBtn:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: var(--border-light);
+}
+
+.uploadBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pathUpload {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+  min-width: 200px;
+}
+
+.pathUpload input {
+  flex: 1;
+  padding: 8px 12px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 13px;
+  min-width: 0;
+}
+
+.pathUpload input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.pathUpload input::placeholder {
+  color: var(--text-muted);
+}
+
+.pathUpload button {
+  padding: 8px 16px;
+  border-radius: 8px;
+  background: var(--accent);
+  border: none;
+  color: white;
+  font-size: 13px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.pathUpload button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.docList {
+  flex: 1;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+}
+
+.docListHeader {
+  padding: 10px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+}
+
+.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.docs {
+  padding: 8px;
+}
+
+.docItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-radius: 6px;
+  transition: background 0.1s;
+}
+
+.docItem:hover {
+  background: var(--bg-hover);
+}
+
+.docName {
+  font-size: 13px;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.docMeta {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.extractSection {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.extractBtn {
+  padding: 10px 20px;
+  border-radius: 8px;
+  background: var(--accent);
+  border: none;
+  color: white;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.extractBtn:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.extractBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.successMsg {
+  font-size: 13px;
+  color: var(--success);
+}
+
+.errorMsg {
+  font-size: 13px;
+  color: var(--error);
+}

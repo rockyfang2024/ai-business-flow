@@ -1,0 +1,227 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.modeToggle {
+  display: flex;
+  gap: 0;
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  background: var(--bg-secondary);
+}
+
+.modeToggle button {
+  padding: 8px 20px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+  margin-right: 8px;
+}
+
+.modeToggle button:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.modeToggle button.activeMode {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--accent-hover);
+}
+
+.modeToggle button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Query 模式 ── */
+.queryMode {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 16px 24px;
+  gap: 12px;
+}
+
+.queryForm {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.queryInput {
+  flex: 1;
+  padding: 10px 14px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.queryInput:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.queryInput::placeholder {
+  color: var(--text-muted);
+}
+
+.sendBtn {
+  padding: 10px 20px;
+  border-radius: 8px;
+  background: var(--accent);
+  border: none;
+  color: white;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.sendBtn:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.sendBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.answerArea {
+  flex: 1;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  padding: 16px;
+}
+
+.answer {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+}
+
+.answerPlaceholder {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.loadingDots {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* ── Dialogue 模式 ── */
+.dialogueMode {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.intro {
+  padding: 12px 24px;
+  font-size: 12px;
+  color: var(--text-muted);
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  line-height: 1.5;
+}
+
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.turn {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 80%;
+}
+
+.userTurn {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+.assistantTurn {
+  align-self: flex-start;
+  align-items: flex-start;
+}
+
+.turnLabel {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 0 4px;
+}
+
+.turnContent {
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.userTurn .turnContent {
+  background: var(--accent-dim);
+  color: var(--accent-hover);
+  border-bottom-right-radius: 4px;
+}
+
+.assistantTurn .turnContent {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border-bottom-left-radius: 4px;
+}
+
+.inputRow {
+  display: flex;
+  gap: 8px;
+  padding: 12px 24px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.dialogueInput {
+  flex: 1;
+  padding: 10px 14px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.dialogueInput:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.dialogueInput::placeholder {
+  color: var(--text-muted);
+}
+
+.dialogueInput:disabled {
+  opacity: 0.6;
+}
