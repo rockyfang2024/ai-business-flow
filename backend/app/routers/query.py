@@ -90,7 +90,7 @@ def _build_query_prompt(question: str, context: dict) -> str:
 
 
 def _llm_call(prompt: str, provider: str, model: str, api_key: str | None = None, base_url: str | None = None) -> str:
-    if provider == "openai" or provider == "openai-compatible":
+    if provider in ("openai", "openai-compatible", "minimax"):
         from openai import OpenAI
         extra_kwargs = {}
         if api_key:

@@ -17,17 +17,26 @@ const DEFAULT_CONFIG: LLMConfig = {
   baseUrl: "https://api.openai.com/v1",
 };
 
-const PROVIDER_MODELS: Record<string, string[]> = {
-  openai: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"],
-  "openai-compatible": [
-    "gpt-4o",
-    "gpt-4o-mini",
-    "claude-3-5-sonnet-20241022",
-    "claude-3-haiku-20240307",
-    "deepseek-chat",
-    "moonshot-v1-8k",
-    "qwen-plus",
-  ],
+const PROVIDER_MODELS: Record<string, { models: string[]; defaultBaseUrl: string; hint: string }> = {
+  openai: {
+    models: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"],
+    defaultBaseUrl: "https://api.openai.com/v1",
+    hint: "默认: https://api.openai.com/v1",
+  },
+  minimax: {
+    models: ["MiniMax-Text-01", "MiniMax-Text-01-mini", "abab6.5s-chat", "abab6.5g-chat"],
+    defaultBaseUrl: "https://api.minimax.chat/v1",
+    hint: "MiniMax API: https://api.minimax.chat/v1",
+  },
+  "openai-compatible": {
+    models: [
+      "gpt-4o", "gpt-4o-mini",
+      "claude-3-5-sonnet-20241022", "claude-3-haiku-20240307",
+      "deepseek-chat", "moonshot-v1-8k", "qwen-plus",
+    ],
+    defaultBaseUrl: "https://api.openai.com/v1",
+    hint: "例如: http://localhost:11434/v1 (Ollama) 或其他 OpenAI 兼容 API",
+  },
 };
 
 interface Props {
@@ -36,6 +45,12 @@ interface Props {
   config: LLMConfig;
   onSave: (config: LLMConfig) => void;
 }
+
+const PROVIDER_BUTTONS: { id: string; label: string }[] = [
+  { id: "openai", label: "☁️ OpenAI 官方" },
+  { id: "minimax", label: "🔵 MiniMax" },
+  { id: "openai-compatible", label: "🔗 OpenAI 兼容" },
+];
 
 export default function SettingsDialog({ open, onClose, config, onSave }: Props) {
   const [form, setForm] = useState<LLMConfig>(DEFAULT_CONFIG);
@@ -46,11 +61,12 @@ export default function SettingsDialog({ open, onClose, config, onSave }: Props)
 
   if (!open) return null;
 
-  const models = PROVIDER_MODELS[form.provider] || [];
+  const providerInfo = PROVIDER_MODELS[form.provider] || PROVIDER_MODELS["openai"];
+  const models = providerInfo.models;
 
   function handleProviderChange(p: string) {
-    const defaultModel = PROVIDER_MODELS[p]?.[0] || "";
-    setForm({ ...form, provider: p, model: defaultModel });
+    const info = PROVIDER_MODELS[p];
+    setForm({ ...form, provider: p, model: info.models[0], baseUrl: info.defaultBaseUrl });
   }
 
   function handleSave() {
@@ -75,13 +91,13 @@ export default function SettingsDialog({ open, onClose, config, onSave }: Props)
           <div className={styles.field}>
             <label className={styles.label}>提供商</label>
             <div className={styles.providerGroup}>
-              {["openai", "openai-compatible"].map((p) => (
+              {PROVIDER_BUTTONS.map((btn) => (
                 <button
-                  key={p}
-                  className={`${styles.providerBtn} ${form.provider === p ? styles.activeProvider : ""}`}
-                  onClick={() => handleProviderChange(p)}
+                  key={btn.id}
+                  className={`${styles.providerBtn} ${form.provider === btn.id ? styles.activeProvider : ""}`}
+                  onClick={() => handleProviderChange(btn.id)}
                 >
-                  {p === "openai" ? "☁️ OpenAI 官方" : "🔗 OpenAI 兼容"}
+                  {btn.label}
                 </button>
               ))}
             </div>
@@ -95,13 +111,9 @@ export default function SettingsDialog({ open, onClose, config, onSave }: Props)
               className={styles.input}
               value={form.baseUrl}
               onChange={(e) => setForm({ ...form, baseUrl: e.target.value })}
-              placeholder="http://localhost:11434/v1"
+              placeholder={providerInfo.defaultBaseUrl}
             />
-            <span className={styles.hint}>
-              {form.provider === "openai"
-                ? "默认: https://api.openai.com/v1"
-                : "例如: http://localhost:11434/v1 (Ollama) 或其他兼容 API"}
-            </span>
+            <span className={styles.hint}>{providerInfo.hint}</span>
           </div>
 
           {/* API Key */}
@@ -112,7 +124,7 @@ export default function SettingsDialog({ open, onClose, config, onSave }: Props)
               className={styles.input}
               value={form.apiKey}
               onChange={(e) => setForm({ ...form, apiKey: e.target.value })}
-              placeholder="sk-..."
+              placeholder="sk-... / MiniMax API Key"
             />
           </div>
 
