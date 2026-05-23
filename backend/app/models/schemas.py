@@ -206,6 +206,14 @@ class LLMConfigOverride(BaseModel):
     reasoning_effort: Optional[str] = Field(default=None, description="xhigh|high|medium|low|minimal|none")
 
 
+class LLMConfigTestRequest(BaseModel):
+    """LLM 连接测试请求"""
+    provider: str = Field(..., description="Provider ID (minimax-cn|deepseek|...)")
+    model: str = Field(..., description="Model ID (MiniMax-M2.7|...)")
+    api_key: Optional[str] = Field(default=None, description="Override API key")
+    base_url: Optional[str] = Field(default=None, description="Override base URL")
+
+
 class ExtractionRequest(BaseModel):
     process_id: str
     document_id: Optional[str] = Field(default=None, description="指定文档 ID；不指定则用全部")

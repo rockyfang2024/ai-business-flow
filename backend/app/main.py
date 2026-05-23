@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .routers import processes, extraction, query
 from .config import BASE_DATA_DIR, get_llm_config, update_llm_config, resolve_api_key
 from .llm_config import PROVIDERS, get_provider, list_providers, normalize_provider
-from .models.schemas import LLMConfigSchema, LLMConfigUpdate, LLMProviderInfo, LLMConfigResponse
+from .models.schemas import LLMConfigSchema, LLMConfigUpdate, LLMProviderInfo, LLMConfigResponse, LLMConfigTestRequest
 
 # ─────────────────────────────────────────────────────────────────────────────
 # App
@@ -141,7 +141,7 @@ def get_llm_provider(provider_name: str):
 
 
 @app.post("/api/config/llm/test")
-def test_llm_connection(provider: str, model: str, api_key: str | None = None, base_url: str | None = None):
+def test_llm_connection(body: LLMConfigTestRequest):
     """
     测试 LLM 连接是否可用。
 
@@ -153,8 +153,10 @@ def test_llm_connection(provider: str, model: str, api_key: str | None = None, b
     from .services.llm_client import create_llm_client, LLMCallFailed
 
     # Resolve credentials
-    resolved_api_key = api_key or resolve_api_key(provider)
-    resolved_base_url = base_url
+    provider = body.provider
+    model = body.model
+    resolved_api_key = body.api_key or resolve_api_key(provider)
+    resolved_base_url = body.base_url
 
     try:
         client = create_llm_client(
