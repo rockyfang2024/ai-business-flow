@@ -1,0 +1,17 @@
+node_modules
+.npm
+.next
+.cache
+.git
+.gitignore
+.env
+.env.*
+Dockerfile
+docker-compose*.yml
+*.md
+README*
+tsconfig.tsbuildinfo
+.eslint.config.mjs
+postcss.config.mjs
+tailwind.config
+public/

@@ -1,4 +1,4 @@
-node:18-slim
+FROM node:20-slim
 
 WORKDIR /app
 
@@ -10,6 +10,6 @@ COPY . .
 EXPOSE 3000
 
 ENV PORT=3000
-ENV API_URL=http://backend:8000
+ENV NODE_ENV=production
 
 CMD ["npm", "start"]

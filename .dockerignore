@@ -1,0 +1,11 @@
+node_modules
+.next
+.cache
+__pycache__
+*.pyc
+.git
+.env
+data/
+backend/__pycache__
+frontend/node_modules
+*.log

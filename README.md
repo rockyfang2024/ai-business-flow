@@ -67,11 +67,27 @@ git clone https://github.com/rockyfang2024/business-flow-skill.git ../business-f
 
 ### Docker 部署
 
+**前置要求：** Docker + Docker Compose v2
+
 ```bash
 git clone git@github.com:rockyfang2024/ai-business-flow.git
 cd ai-business-flow
 git clone https://github.com/rockyfang2024/business-flow-skill.git ../business-flow-skill
-docker compose up
+docker compose up --build
+```
+
+> 启动后访问 **http://localhost:3000**，API 文档：**http://localhost:8000/docs**
+
+**停止服务：**
+
+```bash
+docker compose down
+```
+
+**重新构建（代码变更后）：**
+
+```bash
+docker compose up --build
 ```
 
 ---
@@ -184,27 +200,17 @@ npm install && npm run dev
 
 ## 🐳 Docker 部署
 
-```yaml
-# docker-compose.yml（节选）
-services:
-  backend:
-    build: ./backend
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./data:/app/data
-      - ./llm_config.yaml:/app/llm_config.yaml
-      - ../business-flow-skill:/business-flow-skill
-    environment:
-      - PYTHONUNBUFFERED=1
+完整的 `docker-compose.yml` 已配置好前后端服务，并包含：
 
-  frontend:
-    build: ./frontend
-    ports:
-      - "3000:3000"
-    depends_on:
-      - backend
-```
+| 配置项 | 说明 |
+|--------|------|
+| `healthcheck` | 前后端启动后自动健康检查，frontend 等 backend 就绪后才启动 |
+| `abf-data` volume | 持久化后端数据目录 |
+| `llm_config.yaml` read-only 挂载 | LLM 配置文件只读保护 |
+| `business-flow-skill` volume | 可选：Prompt 模板目录，默认读取 `../business-flow-skill` |
+| `restart: unless-stopped` | 服务崩溃后自动重启 |
+
+详细配置见 [docker-compose.yml](docker-compose.yml)。
 
 ---
 

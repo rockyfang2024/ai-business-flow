@@ -1,0 +1,15 @@
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+*.egg-info
+.git
+.gitignore
+tests/
+.env
+.env.*
+*.md
+Dockerfile
+docker-compose*.yml
+start.sh
+llm_config.yaml
