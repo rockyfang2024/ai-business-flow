@@ -12,7 +12,7 @@
   background: var(--bg-elevated);
   border: 1px solid var(--border);
   border-radius: 12px;
-  width: 480px;
+  width: 520px;
   max-width: 90vw;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
 }
@@ -57,12 +57,22 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
+  position: relative;
 }
 
 .label {
   font-size: 13px;
   font-weight: 500;
   color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.envHint {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 400;
 }
 
 .input,
@@ -75,6 +85,8 @@
   padding: 8px 12px;
   outline: none;
   transition: border-color 0.15s;
+  width: 100%;
+  box-sizing: border-box;
 }
 .input:focus,
 .select:focus {
@@ -84,47 +96,158 @@
   color: var(--text-muted);
 }
 
-.providerGroup {
+/* Search / dropdown */
+.searchWrapper {
   display: flex;
-  gap: 8px;
+  align-items: center;
+  gap: 0;
+  position: relative;
 }
 
-.providerBtn {
-  flex: 1;
-  padding: 8px 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
+.searchInput {
   background: var(--bg-tertiary);
-  color: var(--text-secondary);
-  font-size: 13px;
-  cursor: pointer;
-  transition: all 0.15s;
+  border: 1px solid var(--border);
+  border-radius: 8px 0 0 8px;
+  color: var(--text-primary);
+  font-size: 14px;
+  padding: 8px 12px;
+  outline: none;
+  transition: border-color 0.15s;
+  width: 100%;
+  box-sizing: border-box;
 }
-.providerBtn:hover {
-  border-color: var(--border-light);
+.searchInput:focus {
+  border-color: var(--accent);
+}
+.searchInput::placeholder {
+  color: var(--text-muted);
+}
+
+.dropdownToggle {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-left: none;
+  border-radius: 0 8px 8px 0;
+  color: var(--text-secondary);
+  font-size: 11px;
+  padding: 8px 10px;
+  cursor: pointer;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.dropdownToggle:hover {
+  background: var(--bg-hover);
   color: var(--text-primary);
 }
-.activeProvider {
-  border-color: var(--accent);
+
+.dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+  z-index: 200;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+
+.groupLabel {
+  padding: 6px 12px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+
+.providerItem {
+  padding: 8px 14px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  transition: background 0.1s;
+}
+.providerItem:hover {
+  background: var(--bg-hover);
+}
+.providerItem.active {
   background: var(--accent-dim);
+}
+
+.providerName {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+.providerDesc {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.providerItem.active .providerName {
   color: #fff;
 }
 
+.noResults {
+  padding: 16px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* Hint text */
 .hint {
   font-size: 12px;
   color: var(--text-muted);
 }
 
+/* Test result */
+.testResult {
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.testOk {
+  color: #4ade80;
+  border-color: #4ade8033;
+  background: #4ade8011;
+}
+.testFail {
+  color: #f87171;
+  border-color: #f8717133;
+  background: #f8717111;
+}
+
+/* Footer */
 .footer {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
   gap: 8px;
   padding: 16px 24px 20px;
   border-top: 1px solid var(--border);
 }
 
+.footerRight {
+  display: flex;
+  gap: 8px;
+}
+
 .cancelBtn,
-.saveBtn {
+.saveBtn,
+.testBtn {
   padding: 8px 20px;
   border-radius: 8px;
   font-size: 14px;
@@ -147,4 +270,13 @@
 }
 .saveBtn:hover {
   background: var(--accent-hover);
+}
+.testBtn {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+.testBtn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
 }
