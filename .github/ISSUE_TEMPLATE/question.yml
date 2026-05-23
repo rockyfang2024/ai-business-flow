@@ -1,0 +1,25 @@
+name: Question
+
+description: Ask a question about the project
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## ❓ Question
+        What do you want to ask?
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Provide any relevant background information
+      placeholder: I've been trying to...
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version / Environment
+      placeholder: Python 3.10, Node.js 18, OS: Ubuntu 22.04

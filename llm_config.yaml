@@ -17,3 +17,4 @@ auxiliary:
   model: ''
 model_aliases: {}
 custom_providers: []
+default_model: test-model
