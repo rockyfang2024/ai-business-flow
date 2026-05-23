@@ -51,11 +51,10 @@ def _run_extraction(process_id: str, document_id: str | None = None,
 
     combined_content = "\n\n---\n\n".join(f.read_text(encoding="utf-8") for f in doc_files)
 
-    # 调用 LLM 抽取（复用 extraction-prompt.md）
+    # 调用 LLM 抽取（使用内嵌 Prompt 模板）
     prompt_template = (
-        Path(__file__).parent.parent.parent.parent
-        / "business-flow-skill"
-        / "references"
+        Path(__file__).parent.parent
+        / "prompts"
         / "extraction-prompt.md"
     ).read_text(encoding="utf-8")
 
