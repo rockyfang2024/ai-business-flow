@@ -10,7 +10,7 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException
 from pathlib import Path
 
-from ..main import BASE_DATA_DIR
+from ..config import BASE_DATA_DIR
 from ..models.schemas import ExtractionRequest, ExtractionStatus
 
 router = APIRouter()
@@ -23,7 +23,9 @@ def _process_dir(process_id: str) -> Path:
     return BASE_DATA_DIR / process_id
 
 
-def _run_extraction(process_id: str, document_id: str | None = None) -> ExtractionStatus:
+def _run_extraction(process_id: str, document_id: str | None = None,
+                    llm_provider: str = "openai", llm_model: str = "gpt-4o",
+                    api_key: str | None = None, base_url: str | None = None) -> ExtractionStatus:
     """
     执行抽取流程：
     1. 读取文档内容
@@ -61,9 +63,14 @@ def _run_extraction(process_id: str, document_id: str | None = None) -> Extracti
 
     # 调用 LLM
     from openai import OpenAI
-    client = OpenAI()
+    extra_kwargs = {}
+    if api_key:
+        extra_kwargs["api_key"] = api_key
+    if base_url:
+        extra_kwargs["base_url"] = base_url
+    client = OpenAI(**extra_kwargs)
     response = client.chat.completions.create(
-        model="gpt-4o",
+        model=llm_model,
         messages=[{"role": "user", "content": full_prompt}],
         temperature=0.1,
     )
@@ -182,7 +189,14 @@ def run_extraction(body: ExtractionRequest):
     _extraction_status[body.process_id] = status
 
     try:
-        result = _run_extraction(body.process_id, body.document_id)
+        result = _run_extraction(
+        body.process_id,
+        body.document_id,
+        llm_provider=body.llm_provider or "openai",
+        llm_model=body.llm_model or "gpt-4o",
+        api_key=body.api_key,
+        base_url=body.base_url,
+    )
         _extraction_status[body.process_id] = result
         return result
     except Exception as e:

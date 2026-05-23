@@ -5,6 +5,19 @@ import { api_query } from "@/lib/api";
 import type { DialogueTurn } from "@/types";
 import styles from "./DialogueTab.module.css";
 
+function getLLMConfig() {
+  try {
+    const stored = localStorage.getItem("bfs-llm-config");
+    if (stored) return JSON.parse(stored);
+  } catch { /* ignore */ }
+  return { provider: "openai", model: "gpt-4o", apiKey: "", baseUrl: "https://api.openai.com/v1" };
+}
+
+function hasApiKey(): boolean {
+  const cfg = getLLMConfig();
+  return Boolean(cfg.apiKey?.trim());
+}
+
 interface Props {
   processId: string;
   hasKnowledge: boolean;
@@ -15,8 +28,9 @@ export default function DialogueTab({ processId, hasKnowledge }: Props) {
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
   const [loading, setLoading] = useState(false);
+  const [apiKeyMissing, setApiKeyMissing] = useState(false);
 
-  // 多轮对话状态
+  // Multi-turn dialogue state
   const [history, setHistory] = useState<DialogueTurn[]>([]);
   const [input, setInput] = useState("");
   const [dialogueLoading, setDialogueLoading] = useState(false);
@@ -34,10 +48,15 @@ export default function DialogueTab({ processId, hasKnowledge }: Props) {
   async function handleQuery(e: React.FormEvent) {
     e.preventDefault();
     if (!question.trim()) return;
+    if (!hasApiKey()) {
+      setApiKeyMissing(true);
+      return;
+    }
+    setApiKeyMissing(false);
     setLoading(true);
     setAnswer("");
     try {
-      const res = await api_query.query(question, "openai", "gpt-4o");
+      const res = await api_query.query(processId, question);
       setAnswer(res.answer);
     } catch (err) {
       setAnswer(`查询失败: ${err}`);
@@ -48,6 +67,11 @@ export default function DialogueTab({ processId, hasKnowledge }: Props) {
 
   async function handleSend() {
     if (!input.trim()) return;
+    if (!hasApiKey()) {
+      setApiKeyMissing(true);
+      return;
+    }
+    setApiKeyMissing(false);
     const userMsg = input.trim();
     setInput("");
     setDialogueLoading(true);
@@ -57,7 +81,7 @@ export default function DialogueTab({ processId, hasKnowledge }: Props) {
     setHistory(newHistory);
 
     try {
-      const res = await api_query.dialogue(processId, userMsg, newHistory, "openai", "gpt-4o");
+      const res = await api_query.dialogue(processId, userMsg, newHistory);
       setReply(res.reply);
 
       if (!res.is_complete) {
@@ -76,7 +100,14 @@ export default function DialogueTab({ processId, hasKnowledge }: Props) {
 
   return (
     <div className={styles.container}>
-      {/* 模式切换 */}
+      {/* API Key missing warning */}
+      {apiKeyMissing && (
+        <div className={styles.warning}>
+          ⚠️ 请先在右上角 ⚙️ 设置中配置 LLM API Key
+        </div>
+      )}
+
+      {/* Mode toggle */}
       <div className={styles.modeToggle}>
         <button
           className={mode === "query" ? styles.activeMode : ""}
@@ -94,7 +125,7 @@ export default function DialogueTab({ processId, hasKnowledge }: Props) {
       </div>
 
       {mode === "query" ? (
-        /* ── 知识问答模式 ── */
+        /* ── Knowledge Query Mode ── */
         <div className={styles.queryMode}>
           <form onSubmit={handleQuery} className={styles.queryForm}>
             <input
@@ -121,7 +152,7 @@ export default function DialogueTab({ processId, hasKnowledge }: Props) {
           </div>
         </div>
       ) : (
-        /* ── 对话梳理模式 ── */
+        /* ── Dialogue Mode ── */
         <div className={styles.dialogueMode}>
           <div className={styles.intro}>
             💡 通过多轮对话梳理业务流程。AI 会向你提问，请耐心回答。回答完毕后会自动生成结构化文档。

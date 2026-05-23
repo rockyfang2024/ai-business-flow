@@ -8,7 +8,7 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException
 from pathlib import Path
 
-from ..main import BASE_DATA_DIR
+from ..config import BASE_DATA_DIR
 from ..models.schemas import ProcessCreate, ProcessInfo, ProcessListItem, DocumentItem
 
 router = APIRouter()

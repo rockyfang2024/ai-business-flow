@@ -8,7 +8,7 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException
 from pathlib import Path
 
-from ..main import BASE_DATA_DIR
+from ..config import BASE_DATA_DIR
 from ..models.schemas import (
     QueryRequest, QueryResponse,
     DialogueRequest, DialogueResponse, DialogueTurn,
@@ -89,15 +89,25 @@ def _build_query_prompt(question: str, context: dict) -> str:
 """
 
 
-def _llm_call(prompt: str, provider: str, model: str) -> str:
-    if provider == "openai":
+def _llm_call(prompt: str, provider: str, model: str, api_key: str | None = None, base_url: str | None = None) -> str:
+    if provider == "openai" or provider == "openai-compatible":
         from openai import OpenAI
-        client = OpenAI()
+        extra_kwargs = {}
+        if api_key:
+            extra_kwargs["api_key"] = api_key
+        if base_url:
+            extra_kwargs["base_url"] = base_url
+        client = OpenAI(**extra_kwargs)
         resp = client.chat.completions.create(model=model, messages=[{"role": "user", "content": prompt}], temperature=0.3)
         return resp.choices[0].message.content
     elif provider == "anthropic":
         from anthropic import Anthropic
-        client = Anthropic()
+        extra_kwargs = {}
+        if api_key:
+            extra_kwargs["api_key"] = api_key
+        if base_url:
+            extra_kwargs["base_url"] = base_url
+        client = Anthropic(**extra_kwargs)
         resp = client.messages.create(model=model, max_tokens=2048, messages=[{"role": "user", "content": prompt}])
         return resp.content[0].text
     else:
@@ -122,7 +132,8 @@ def query_knowledge(body: QueryRequest):
     prompt = _build_query_prompt(body.question, context)
 
     try:
-        answer = _llm_call(prompt, body.llm_provider or "openai", body.llm_model or "gpt-4o")
+        answer = _llm_call(prompt, body.llm_provider or "openai", body.llm_model or "gpt-4o",
+                           api_key=body.api_key, base_url=body.base_url)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"LLM call failed: {e}")
 
@@ -207,6 +218,8 @@ def dialogue梳理(body: DialogueRequest):
             "\n".join([f"[{m['role']}] {m['content']}" for m in messages]),
             body.llm_provider or "openai",
             body.llm_model or "gpt-4o",
+            api_key=body.api_key,
+            base_url=body.base_url,
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"LLM call failed: {e}")

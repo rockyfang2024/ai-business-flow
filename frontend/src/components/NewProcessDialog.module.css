@@ -44,7 +44,7 @@
   color: var(--text-primary);
 }
 
-form {
+.form {
   padding: 20px 24px 24px;
 }
 

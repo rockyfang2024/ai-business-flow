@@ -5,6 +5,17 @@
   overflow: hidden;
 }
 
+.warning {
+  margin: 12px 24px 0;
+  padding: 10px 14px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 8px;
+  color: #ef4444;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
 .modeToggle {
   display: flex;
   gap: 0;

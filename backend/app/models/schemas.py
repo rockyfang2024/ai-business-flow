@@ -61,6 +61,10 @@ class DocumentItem(BaseModel):
 class ExtractionRequest(BaseModel):
     process_id: str
     document_id: Optional[str] = None  # 可选，指定文档 ID；不指定则用全部已上传文档
+    llm_provider: Optional[str] = Field(default="openai")
+    llm_model: Optional[str] = Field(default="gpt-4o")
+    api_key: Optional[str] = Field(default=None)
+    base_url: Optional[str] = Field(default=None)
 
 
 class ExtractionStatus(BaseModel):
@@ -81,6 +85,8 @@ class QueryRequest(BaseModel):
     question: str = Field(..., min_length=1)
     llm_provider: Optional[str] = Field(default="openai")
     llm_model: Optional[str] = Field(default="gpt-4o")
+    api_key: Optional[str] = Field(default=None)
+    base_url: Optional[str] = Field(default=None)
 
 
 class QueryResponse(BaseModel):
@@ -104,6 +110,8 @@ class DialogueRequest(BaseModel):
     history: list[DialogueTurn] = Field(default_factory=list)
     llm_provider: Optional[str] = Field(default="openai")
     llm_model: Optional[str] = Field(default="gpt-4o")
+    api_key: Optional[str] = Field(default=None)
+    base_url: Optional[str] = Field(default=None)
 
 
 class DialogueResponse(BaseModel):

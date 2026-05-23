@@ -42,7 +42,7 @@ export default function NewProcessDialog({ open, onClose, onCreated }: Props) {
           <h2>新建业务流程</h2>
           <button className={styles.closeBtn} onClick={onClose}>✕</button>
         </div>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} className={styles.form}>
           <div className={styles.field}>
             <label>业务流程名称 *</label>
             <input

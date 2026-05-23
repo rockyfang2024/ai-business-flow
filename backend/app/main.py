@@ -4,9 +4,9 @@ Business Flow Skill Web - FastAPI Backend
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from pathlib import Path
 
-from routers import processes, extraction, query
+from .routers import processes, extraction, query
+from .config import BASE_DATA_DIR
 
 # ──────────────────────────────────────────────────────────────
 # App
@@ -21,13 +21,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# ──────────────────────────────────────────────────────────────
-# 数据目录配置
-# ──────────────────────────────────────────────────────────────
-
-BASE_DATA_DIR = Path(__file__).parent.parent.parent / "data"
-BASE_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 # ──────────────────────────────────────────────────────────────
 # 注册路由

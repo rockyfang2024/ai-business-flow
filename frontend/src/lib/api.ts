@@ -24,6 +24,25 @@ async function api<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 // ──────────────────────────────────────────────────────────────
+// LLM Config (stored in localStorage, passed to backend)
+// ──────────────────────────────────────────────────────────────
+
+export interface LLMConfig {
+  provider: string;
+  model: string;
+  apiKey: string;
+  baseUrl: string;
+}
+
+function getLLMConfig(): LLMConfig {
+  try {
+    const stored = localStorage.getItem("bfs-llm-config");
+    if (stored) return JSON.parse(stored);
+  } catch { /* ignore */ }
+  return { provider: "openai", model: "gpt-4o", apiKey: "", baseUrl: "https://api.openai.com/v1" };
+}
+
+// ──────────────────────────────────────────────────────────────
 // Process APIs
 // ──────────────────────────────────────────────────────────────
 
@@ -62,11 +81,20 @@ export const api_processes = {
 export const api_extraction = {
   getStatus: (processId: string) => api<ExtractionStatus>(`/extraction/${processId}/status`),
 
-  run: (processId: string, documentId?: string) =>
-    api<ExtractionStatus>("/extraction/run", {
+  run: (processId: string, documentId?: string) => {
+    const cfg = getLLMConfig();
+    return api<ExtractionStatus>("/extraction/run", {
       method: "POST",
-      body: JSON.stringify({ process_id: processId, document_id: documentId }),
-    }),
+      body: JSON.stringify({
+        process_id: processId,
+        document_id: documentId,
+        llm_provider: cfg.provider,
+        llm_model: cfg.model,
+        api_key: cfg.apiKey,
+        base_url: cfg.baseUrl,
+      }),
+    });
+  },
 };
 
 // ──────────────────────────────────────────────────────────────
@@ -74,32 +102,38 @@ export const api_extraction = {
 // ──────────────────────────────────────────────────────────────
 
 export const api_query = {
-  query: (processId: string, question: string, llm_provider?: string, llm_model?: string) =>
-    api<{ answer: string; sources: string[]; confidence?: string }>("/query/query", {
+  query: (processId: string, question: string) => {
+    const cfg = getLLMConfig();
+    return api<{ answer: string; sources: string[]; confidence?: string }>("/query/query", {
       method: "POST",
       body: JSON.stringify({
         process_id: processId,
         question,
-        llm_provider,
-        llm_model,
+        llm_provider: cfg.provider,
+        llm_model: cfg.model,
+        api_key: cfg.apiKey,
+        base_url: cfg.baseUrl,
       }),
-    }),
+    });
+  },
 
   dialogue: (
     processId: string,
     message: string,
-    history: DialogueTurn[],
-    llm_provider?: string,
-    llm_model?: string
-  ) =>
-    api<{ reply: string; is_complete: boolean; extracted_data?: unknown }>("/query/dialogue", {
+    history: DialogueTurn[]
+  ) => {
+    const cfg = getLLMConfig();
+    return api<{ reply: string; is_complete: boolean; extracted_data?: unknown }>("/query/dialogue", {
       method: "POST",
       body: JSON.stringify({
         process_id: processId,
         message,
         history,
-        llm_provider,
-        llm_model,
+        llm_provider: cfg.provider,
+        llm_model: cfg.model,
+        api_key: cfg.apiKey,
+        base_url: cfg.baseUrl,
       }),
-    }),
+    });
+  },
 };
