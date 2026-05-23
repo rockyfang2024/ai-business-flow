@@ -1,20 +1,42 @@
 """
 Query API + Dialogue API - 知识查询 & 对话式梳理
+
+Uses the unified llm_client for multi-provider, multi-transport LLM calls.
+Supports all 30 providers from hermes-agent's provider registry.
 """
 
-import json
-import yaml
-from datetime import datetime
-from fastapi import APIRouter, HTTPException
-from pathlib import Path
+from __future__ import annotations
 
-from ..config import BASE_DATA_DIR
+import logging
+import re
+from datetime import datetime
+from pathlib import Path
+from typing import Optional
+
+import yaml
+from fastapi import APIRouter, HTTPException
+
+from ..config import BASE_DATA_DIR, get_llm_config, resolve_api_key, resolve_base_url
 from ..models.schemas import (
-    QueryRequest, QueryResponse,
-    DialogueRequest, DialogueResponse, DialogueTurn,
+    QueryRequest,
+    QueryResponse,
+    DialogueRequest,
+    DialogueResponse,
+    DialogueTurn,
+    LLMConfigOverride,
+)
+from ..services.llm_client import (
+    create_llm_client,
+    chat_complete,
+    LLMCallFailed,
+    LLMResponse,
 )
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+
+# 内存中存储对话历史（生产环境换持久存储）
+_dialogue_history: dict[str, list[DialogueTurn]] = {}
 
 
 def _process_dir(process_id: str) -> Path:
@@ -27,7 +49,13 @@ def _load_skill_content(process_id: str) -> dict:
     if not pdir.exists():
         raise HTTPException(status_code=404, detail="Process not found")
 
-    result = {"skill_md": "", "main_yaml": "", "decision_tree_yaml": "", "exceptions_yaml": "", "sla_yaml": ""}
+    result = {
+        "skill_md": "",
+        "main_yaml": "",
+        "decision_tree_yaml": "",
+        "exceptions_yaml": "",
+        "sla_yaml": "",
+    }
 
     skill_md = pdir / "SKILL.md"
     if skill_md.exists():
@@ -42,6 +70,35 @@ def _load_skill_content(process_id: str) -> dict:
                 result[key] = fpath.read_text(encoding="utf-8")
 
     return result
+
+
+def _parse_llm_override(llm: Optional[LLMConfigOverride], cfg: dict) -> tuple[str, str, Optional[str], Optional[str]]:
+    """Resolve effective (provider, model, api_key, base_url) from override + config."""
+    model_cfg = cfg.get("model", {})
+
+    provider = llm.provider if (llm and llm.provider) else model_cfg.get("provider", "openrouter")
+    if provider == "auto":
+        provider = "openrouter"
+
+    model = llm.model if (llm and llm.model) else model_cfg.get("default", "anthropic/claude-sonnet-4.6")
+    if "/" in model and provider == "openrouter":
+        parts = model.split("/", 1)
+        provider = parts[0]
+        model = parts[1]
+
+    api_key = None
+    if llm and llm.api_key:
+        api_key = llm.api_key
+    else:
+        api_key = resolve_api_key(provider)
+
+    base_url: Optional[str] = None
+    if llm and llm.base_url:
+        base_url = llm.base_url
+    else:
+        base_url = resolve_base_url(provider, model_cfg.get("base_url", ""))
+
+    return provider, model, api_key, base_url
 
 
 def _build_query_prompt(question: str, context: dict) -> str:
@@ -89,31 +146,6 @@ def _build_query_prompt(question: str, context: dict) -> str:
 """
 
 
-def _llm_call(prompt: str, provider: str, model: str, api_key: str | None = None, base_url: str | None = None) -> str:
-    if provider in ("openai", "openai-compatible", "minimax"):
-        from openai import OpenAI
-        extra_kwargs = {}
-        if api_key:
-            extra_kwargs["api_key"] = api_key
-        if base_url:
-            extra_kwargs["base_url"] = base_url
-        client = OpenAI(**extra_kwargs)
-        resp = client.chat.completions.create(model=model, messages=[{"role": "user", "content": prompt}], temperature=0.3)
-        return resp.choices[0].message.content
-    elif provider == "anthropic":
-        from anthropic import Anthropic
-        extra_kwargs = {}
-        if api_key:
-            extra_kwargs["api_key"] = api_key
-        if base_url:
-            extra_kwargs["base_url"] = base_url
-        client = Anthropic(**extra_kwargs)
-        resp = client.messages.create(model=model, max_tokens=2048, messages=[{"role": "user", "content": prompt}])
-        return resp.content[0].text
-    else:
-        raise ValueError(f"Unsupported provider: {provider}")
-
-
 # ──────────────────────────────────────────────────────────────
 # Query Agent
 # ──────────────────────────────────────────────────────────────
@@ -126,15 +158,37 @@ def query_knowledge(body: QueryRequest):
         raise HTTPException(status_code=404, detail="Process not found")
 
     if not (pdir / "processes").exists():
-        raise HTTPException(status_code=400, detail="No knowledge extracted yet. Please upload documents and run extraction first.")
+        raise HTTPException(
+            status_code=400,
+            detail="No knowledge extracted yet. Please upload documents and run extraction first.",
+        )
 
     context = _load_skill_content(body.process_id)
     prompt = _build_query_prompt(body.question, context)
 
+    # Resolve LLM config
+    cfg = get_llm_config()
+    provider, model, api_key, base_url = _parse_llm_override(body.llm, cfg)
+
+    logger.info(f"[query] provider={provider} model={model} process_id={body.process_id}")
+
     try:
-        answer = _llm_call(prompt, body.llm_provider or "openai", body.llm_model or "gpt-4o",
-                           api_key=body.api_key, base_url=body.base_url)
+        client = create_llm_client(
+            provider=provider,
+            model=model,
+            api_key=api_key,
+            base_url=base_url,
+        )
+        response: LLMResponse = client.chat(
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+            max_tokens=2048,
+        )
+        answer = response.content
+    except LLMCallFailed as exc:
+        raise HTTPException(status_code=500, detail=f"LLM call failed [{exc.provider}]: {exc.message}")
     except Exception as e:
+        logger.error(f"Query LLM error: {e}")
         raise HTTPException(status_code=500, detail=f"LLM call failed: {e}")
 
     sources = []
@@ -148,10 +202,6 @@ def query_knowledge(body: QueryRequest):
 # Dialogue Agent（对话式梳理 - 无文档场景）
 # ──────────────────────────────────────────────────────────────
 
-# 内存中存储对话历史（生产环境换持久存储）
-_dialogue_history: dict[str, list[DialogueTurn]] = {}
-
-# 对话式梳理的 Prompt 模板
 DIALOGUE_SYSTEM_PROMPT = """你是一个业务知识梳理助手。你的任务是通过多轮对话，从用户那里收集业务流程的完整信息。
 
 ## 你的工作方式
@@ -205,34 +255,52 @@ def dialogue梳理(body: DialogueRequest):
     if history_key not in _dialogue_history:
         _dialogue_history[history_key] = []
 
-    # 构建消息列表
+    # 构建消息列表（DialogueTurn uses role: user|assistant）
     messages = [{"role": "system", "content": DIALOGUE_SYSTEM_PROMPT}]
     for turn in body.history:
         messages.append({"role": turn.role, "content": turn.content})
-
     messages.append({"role": "user", "content": body.message})
 
-    # 调用 LLM
+    # Resolve LLM config
+    cfg = get_llm_config()
+    provider, model, api_key, base_url = _parse_llm_override(body.llm, cfg)
+
+    logger.info(f"[dialogue] provider={provider} model={model} process_id={body.process_id}")
+
+    # Resolve reasoning effort
+    reasoning_effort = None
+    if body.llm and body.llm.reasoning_effort:
+        reasoning_effort = body.llm.reasoning_effort
+    else:
+        reasoning_effort = cfg.get("agent", {}).get("reasoning_effort")
+
     try:
-        raw_reply = _llm_call(
-            "\n".join([f"[{m['role']}] {m['content']}" for m in messages]),
-            body.llm_provider or "openai",
-            body.llm_model or "gpt-4o",
-            api_key=body.api_key,
-            base_url=body.base_url,
+        client = create_llm_client(
+            provider=provider,
+            model=model,
+            api_key=api_key,
+            base_url=base_url,
+            reasoning_effort=reasoning_effort,
         )
+        response: LLMResponse = client.chat(
+            messages=messages,
+            temperature=0.7,
+            max_tokens=2048,
+        )
+        raw_reply = response.content
+    except LLMCallFailed as exc:
+        raise HTTPException(status_code=500, detail=f"LLM call failed [{exc.provider}]: {exc.message}")
     except Exception as e:
+        logger.error(f"Dialogue LLM error: {e}")
         raise HTTPException(status_code=500, detail=f"LLM call failed: {e}")
 
     # 检查是否收集完毕（检查 reply 中是否包含 is_complete: true）
-    import re
     is_complete = False
     extracted_data = None
 
     json_match = re.search(r"```json\s*(\{.*?\})\s*```", raw_reply, re.DOTALL)
     if json_match:
         try:
-            import json
             parsed = json.loads(json_match.group(1))
             is_complete = parsed.get("is_complete", False)
             extracted_data = parsed.get("extracted_data")

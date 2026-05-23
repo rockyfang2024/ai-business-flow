@@ -1,0 +1,19 @@
+model:
+  default: anthropic/claude-sonnet-4.6
+  provider: auto
+  base_url: ''
+providers: {}
+provider_routing: {}
+openrouter:
+  response_cache: true
+  response_cache_ttl: 300
+agent:
+  reasoning_effort: medium
+delegation:
+  model: ''
+  provider: ''
+auxiliary:
+  provider: auto
+  model: ''
+model_aliases: {}
+custom_providers: []

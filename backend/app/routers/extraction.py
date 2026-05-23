@@ -1,19 +1,35 @@
 """
-Extraction API - 调用 AI 从文档中抽取结构化知识
+Extraction API — 调用 AI 从文档中抽取结构化知识
+
+Uses the unified llm_client for multi-provider, multi-transport LLM calls.
+Supports all 30 providers from hermes-agent's provider registry.
 """
 
-import json
+from __future__ import annotations
+
+import logging
 import re
-import subprocess
 import uuid
 from datetime import datetime
-from fastapi import APIRouter, HTTPException
 from pathlib import Path
+from typing import Optional
 
-from ..config import BASE_DATA_DIR
-from ..models.schemas import ExtractionRequest, ExtractionStatus
+from fastapi import APIRouter, HTTPException
+
+from ..config import BASE_DATA_DIR, resolve_api_key, resolve_base_url
+from ..models.schemas import (
+    ExtractionRequest,
+    ExtractionStatus,
+    LLMConfigOverride,
+)
+from ..services.llm_client import (
+    create_llm_client,
+    LLMCallFailed,
+    LLMResponse,
+)
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 # 内存中存储抽取状态（生产环境换 Redis）
 _extraction_status: dict[str, ExtractionStatus] = {}
@@ -23,15 +39,57 @@ def _process_dir(process_id: str) -> Path:
     return BASE_DATA_DIR / process_id
 
 
-def _run_extraction(process_id: str, document_id: str | None = None,
-                    llm_provider: str = "openai", llm_model: str = "gpt-4o",
-                    api_key: str | None = None, base_url: str | None = None) -> ExtractionStatus:
+def _parse_llm_override(llm: Optional[LLMConfigOverride], cfg: dict) -> tuple[str, str, Optional[str], Optional[str]]:
+    """
+    Resolve effective (provider, model, api_key, base_url) from override + config.
+    Returns (provider, model, api_key, base_url).
+    """
+    model_cfg = cfg.get("model", {})
+
+    # Provider
+    provider = llm.provider if (llm and llm.provider) else model_cfg.get("provider", "openrouter")
+    if provider == "auto":
+        provider = "openrouter"
+
+    # Model
+    model = llm.model if (llm and llm.model) else model_cfg.get("default", "anthropic/claude-sonnet-4.6")
+    # Strip provider prefix if embedded in model name
+    if "/" in model and provider == "auto":
+        parts = model.split("/", 1)
+        provider = parts[0]
+        model = parts[1]
+
+    # API key: explicit > config > env
+    api_key: Optional[str] = None
+    if llm and llm.api_key:
+        api_key = llm.api_key
+    else:
+        api_key = resolve_api_key(provider)
+
+    # Base URL
+    base_url: Optional[str] = None
+    if llm and llm.base_url:
+        base_url = llm.base_url
+    else:
+        base_url = resolve_base_url(provider, model_cfg.get("base_url", ""))
+
+    return provider, model, api_key, base_url
+
+
+def _run_extraction(
+    process_id: str,
+    document_id: Optional[str] = None,
+    llm_override: Optional[LLMConfigOverride] = None,
+) -> ExtractionStatus:
     """
     执行抽取流程：
-    1. 读取文档内容
-    2. 调用 OpenAI API 生成 YAML
-    3. 写入 processes/ 目录
+      1. 读取文档内容
+      2. 调用 LLM（via unified llm_client）生成 YAML
+      3. 写入 processes/ 目录
     """
+    # Load LLM config (already loaded at startup)
+    from ..config import get_llm_config
+
     pdir = _process_dir(process_id)
     docs_dir = pdir / "documents"
     output_dir = pdir / "processes"
@@ -51,29 +109,75 @@ def _run_extraction(process_id: str, document_id: str | None = None,
 
     combined_content = "\n\n---\n\n".join(f.read_text(encoding="utf-8") for f in doc_files)
 
-    # 调用 LLM 抽取（使用内嵌 Prompt 模板）
+    # 读取 Prompt 模板
     prompt_template = (
-        Path(__file__).parent.parent
-        / "prompts"
-        / "extraction-prompt.md"
+        Path(__file__).parent.parent / "prompts" / "extraction-prompt.md"
     ).read_text(encoding="utf-8")
 
     full_prompt = prompt_template + "\n\n---\n\n## 原始业务文档\n\n" + combined_content
 
-    # 调用 LLM
-    from openai import OpenAI
-    extra_kwargs = {}
-    if api_key:
-        extra_kwargs["api_key"] = api_key
-    if base_url:
-        extra_kwargs["base_url"] = base_url
-    client = OpenAI(**extra_kwargs)
-    response = client.chat.completions.create(
-        model=llm_model,
-        messages=[{"role": "user", "content": full_prompt}],
-        temperature=0.1,
-    )
-    raw_output = response.choices[0].message.content
+    # Resolve LLM config
+    cfg = get_llm_config()
+    provider, model, api_key, base_url = _parse_llm_override(llm_override, cfg)
+
+    logger.info(f"[extraction] provider={provider} model={model} process_id={process_id}")
+
+    # Build reasoning config
+    reasoning_effort = None
+    if llm_override and llm_override.reasoning_effort:
+        reasoning_effort = llm_override.reasoning_effort
+    else:
+        reasoning_effort = cfg.get("agent", {}).get("reasoning_effort", "medium")
+
+    # Create client
+    try:
+        client = create_llm_client(
+            provider=provider,
+            model=model,
+            api_key=api_key,
+            base_url=base_url,
+            reasoning_effort=reasoning_effort,
+        )
+    except Exception as exc:
+        logger.error(f"Failed to create LLM client: {exc}")
+        return ExtractionStatus(
+            process_id=process_id,
+            status="error",
+            error=f"Failed to initialize LLM client: {exc}",
+        )
+
+    # Call LLM
+    try:
+        messages = [{"role": "user", "content": full_prompt}]
+        temperature = 0.1
+        max_tokens = None
+
+        if llm_override:
+            if llm_override.temperature is not None:
+                temperature = llm_override.temperature
+            if llm_override.max_tokens is not None:
+                max_tokens = llm_override.max_tokens
+
+        response: LLMResponse = client.chat(
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+        raw_output = response.content
+    except LLMCallFailed as exc:
+        logger.error(f"LLM call failed: {exc}")
+        return ExtractionStatus(
+            process_id=process_id,
+            status="error",
+            error=f"LLM call failed [{exc.provider}]: {exc.message}",
+        )
+    except Exception as exc:
+        logger.error(f"Unexpected error during LLM call: {exc}")
+        return ExtractionStatus(
+            process_id=process_id,
+            status="error",
+            error=f"Unexpected error: {exc}",
+        )
 
     # 解析 YAML
     yaml_blocks = re.findall(r"```yaml\s*(.*?)```", raw_output, re.DOTALL)
@@ -125,6 +229,8 @@ def _run_extraction(process_id: str, document_id: str | None = None,
         "# AI 抽取报告",
         f"**业务流程**: {pdir.name}",
         f"**抽取日期**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+        f"**Provider**: {provider}",
+        f"**Model**: {model}",
         "",
         "## 置信度报告",
         confidence_report or "_（无）_",
@@ -144,10 +250,9 @@ def _run_extraction(process_id: str, document_id: str | None = None,
 
 
 def _safe_yaml_load(content: str):
-    import yaml
     try:
-        return yaml.safe_load(content) or {}
-    except yaml.YAMLError:
+        return __import__("yaml").safe_load(content) or {}
+    except Exception:
         return {}
 
 
@@ -178,7 +283,11 @@ def get_extraction_status(process_id: str):
 def run_extraction(body: ExtractionRequest):
     """
     触发 AI 文档抽取。
+
     document_id 可选，不传则使用该流程下所有已上传文档。
+
+    llm override 可选，支持临时指定 provider/model/credentials，
+    不传则使用全局 llm_config.yaml 中的配置。
     """
     pdir = _process_dir(body.process_id)
     if not pdir.exists():
@@ -189,13 +298,10 @@ def run_extraction(body: ExtractionRequest):
 
     try:
         result = _run_extraction(
-        body.process_id,
-        body.document_id,
-        llm_provider=body.llm_provider or "openai",
-        llm_model=body.llm_model or "gpt-4o",
-        api_key=body.api_key,
-        base_url=body.base_url,
-    )
+            process_id=body.process_id,
+            document_id=body.document_id,
+            llm_override=body.llm,
+        )
         _extraction_status[body.process_id] = result
         return result
     except Exception as e:
