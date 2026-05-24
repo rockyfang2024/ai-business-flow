@@ -449,7 +449,7 @@ export default function SettingsDialog({ open, onClose, config, onSave }: Props)
     }
     setTestResult({ ok: true, msg: "正在连接测试..." });
     try {
-      const res = await fetch("http://localhost:8000/api/config/llm/test", {
+      const res = await fetch("/api/config/llm/test", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
