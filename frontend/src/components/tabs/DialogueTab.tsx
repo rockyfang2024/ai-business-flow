@@ -82,10 +82,14 @@ export default function DialogueTab({ processId, hasKnowledge }: Props) {
 
     try {
       const res = await api_query.dialogue(processId, userMsg, newHistory);
-      setReply(res.reply);
 
       if (!res.is_complete) {
+        // 非完成状态：添加到history，reply通过history渲染（避免重复）
         setHistory([...newHistory, { role: "assistant", content: res.reply }]);
+        setReply(""); // 清空reply状态，防止同时从history和reply两个渠道渲染
+      } else {
+        // 完成状态：history已是最新，reply用于最终一次渲染
+        setReply(res.reply);
       }
     } catch (err) {
       const errMsg = `错误: ${err}`;
