@@ -173,3 +173,10 @@ export const api_llm_config = {
       body: JSON.stringify({ provider, model, api_key: apiKey, base_url: baseUrl }),
     }),
 };
+
+export const api_dialogue = {
+  getHistory: (processId: string) =>
+    api<{ history: DialogueTurn[]; is_complete: boolean }>(
+      `/query/dialogue/${processId}/history`
+    ),
+};

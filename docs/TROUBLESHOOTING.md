@@ -115,36 +115,39 @@ curl -X POST http://localhost:3000/api/config/llm/test \
 
 ### 根因分析
 
-问题出在 `DialogueTab.tsx` 的 `handleSend` 函数中，对 `is_complete` 条件的处理有误：
+问题出在 `DialogueTab.tsx` 的 `handleSend` 函数中，存在两个问题：
+
+1. **`setReply(res.reply)` 在条件分支之前无条件执行**，导致回复无论什么情况都会通过 `reply` state 渲染一次
+
+2. **条件分支的两个分支逻辑完全相同**（`is_complete=true` 和 `is_complete=false` 都执行 `setHistory([...newHistory, ...])`），导致 history 里也添加了一次
 
 ```tsx
-// ❌ 问题代码 - 两个分支完全相同，且 is_complete 判断无实际区分
+// ❌ 问题代码
+const res = await api_query.dialogue(processId, userMsg, newHistory);
+setReply(res.reply);  // 无条件执行 → 渲染一次
+
 if (!res.is_complete) {
   setHistory([...newHistory, { role: "assistant", content: res.reply }]);
 } else {
-  setHistory([...newHistory, { role: "assistant", content: res.reply }]);
+  setHistory([...newHistory, { role: "assistant", content: res.reply }]); // 完全重复！
 }
 ```
 
-无论 `is_complete` 是 `true` 还是 `false`，都执行了完全相同的 `setHistory` 操作，导致 AI 回复被添加两次。
-
-此外，`setReply(res.reply)` 已经将回复存入 `reply` state，而 `{reply && ...}` 渲染逻辑也会显示这条消息，形成**重复渲染**。
-
 ### 解决方案
 
-修正 `DialogueTab.tsx` 的条件分支逻辑：`reply` state 用于**实时渲染**，而 `history` 中保存**已确认的对话历史**：
+分离 `is_complete` 的两个分支，**互斥处理**：
 
 ```tsx
 // ✅ 修复后
 if (!res.is_complete) {
+  // 非完成状态：添加到history，reply通过history渲染（避免重复）
   setHistory([...newHistory, { role: "assistant", content: res.reply }]);
+  setReply(""); // 清空reply状态，防止同时从history和reply两个渠道渲染
+} else {
+  // 完成状态：history已是最新，reply用于最终一次渲染
+  setReply(res.reply);
 }
-// is_complete 为 true 时，不重复添加到 history，只保留 reply 显示即可
 ```
-
-这样：
-- `reply` state 控制当前回复的实时显示（`{reply && ...}` 渲染块）
-- `history` 只保存经过确认的历史消息（避免重复添加）
 
 ### 验证方法
 
@@ -158,6 +161,101 @@ if (!res.is_complete) {
 1. 条件分支中注意区分不同分支的**实际处理逻辑**，不要写出完全相同的分支
 2. 使用 `console.log` 或断点调试，验证 state 更新逻辑是否符合预期
 3. 注意 React 的 state 更新是异步的，避免依赖上一个 state 值时出现竞态
+
+---
+
+## 3. 对话历史切换 Tab 后丢失
+
+### 问题描述
+
+在对话模式下进行多轮对话，切换到其他 Tab（如"文档"或"知识结构"）后，再切换回"对话" Tab，**对话历史全部消失**，需要重新开始。
+
+### 根因分析
+
+前端 `DialogueTab` 组件的 `history` 状态存储在 **React 组件内部**（`useState`）。当切换 Tab 时，`DialogueTab` 组件被卸载（unmount），再次切换回来时组件重新挂载，`history` 恢复为初始空数组 `[]`，之前的对话内容全部丢失。
+
+后端虽然有 `_dialogue_history` 内存字典，但：
+1. 每次请求时后端**没有持久化**对话历史到磁盘
+2. 前端每次发消息都携带完整的 `history`，但后端**没有真正使用**这个 history（之前直接覆盖）
+
+### 解决方案
+
+**后端改造**：将对话历史持久化到 `processes/{processId}/dialogue_history.json` 文件中。
+
+每次对话结束后（无论是否完成），都将对话写入文件：
+
+```python
+# 非完成状态：追加到历史文件
+chat_history.append({"role": "user", "content": body.message})
+chat_history.append({"role": "assistant", "content": raw_reply})
+with open(history_file, "w", encoding="utf-8") as f:
+    json.dump({"history": chat_history, "is_complete": False}, f, ensure_ascii=False)
+```
+
+前端在组件挂载时调用 `GET /api/query/dialogue/{processId}/history` 加载历史：
+
+```tsx
+useEffect(() => {
+  if (mode !== "dialogue") return;
+  api_dialogue.getHistory(processId)
+    .then(({ history, is_complete }) => {
+      if (history.length > 0) {
+        setHistory(history);
+      }
+      if (is_complete) {
+        setHistory([]); // 已完成则清空（对话已转为知识结构）
+      }
+    })
+    .catch(() => { /* ignore */ });
+}, [processId, mode]);
+```
+
+### 新增文件
+
+- `GET /api/query/dialogue/{processId}/history` — 从 `dialogue_history.json` 加载历史
+
+### 验证方法
+
+1. 在对话 Tab 进行多轮对话（至少 2 轮）
+2. 切换到"文档"或"知识结构" Tab
+3. 再切换回"对话" Tab
+4. 确认之前的对话历史**完整保留**
+
+---
+
+## 4. 对话完成后的知识结构未展示
+
+### 问题描述
+
+对话完成后（AI 回复包含 `is_complete: true`），对话内容已转换为知识结构（YAML 文件），但在"知识结构" Tab 中**看不到这些内容**，仍然显示"暂无数据"。
+
+### 根因分析
+
+对话完成后，后端将知识写入 `processes/main.yaml` 等文件，但 `get_knowledge` 接口只读取 `processes/` 目录下的文件。关键问题在于：
+
+1. **knowledge.json 写入逻辑**：对话完成后，`extracted_data` 存入 `knowledge.json`，但这个文件**不在 `get_knowledge` 的读取范围内**
+2. **`has_knowledge` 判断**：之前只检查 `processes/` 目录是否存在，没有检查 `knowledge.json`
+
+### 解决方案
+
+**后端**：
+1. 对话完成时，将 `extracted_data` 写入 `knowledge.json` 并生成对应的 YAML 文件
+2. `has_knowledge` 判断增加对 `knowledge.json` 的检查
+3. `get_knowledge` 接口支持从 `knowledge.json` 读取并转换为 YAML 格式
+
+**数据流**：
+
+```
+对话完成 → extracted_data 写入 knowledge.json + 生成 processes/main.yaml
+         → has_knowledge = true（知识结构Tab可点击）
+         → 知识结构Tab读取 processes/main.yaml 展示
+```
+
+### 验证方法
+
+1. 在对话 Tab 完成对话流程（让 AI 说"我已收集到足够信息"触发 `is_complete`）
+2. 切换到"知识结构" Tab
+3. 确认能看到生成的 YAML 内容（如主流程、决策树等）
 
 ---
 

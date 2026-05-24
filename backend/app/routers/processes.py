@@ -43,6 +43,7 @@ def _processes_list() -> list[ProcessListItem]:
             skill_md.exists()
             or process_yaml.exists()
             or (pid_dir / "processes").exists()
+            or (pid_dir / "knowledge.json").exists()
         )
 
         results.append(ProcessListItem(
@@ -102,7 +103,7 @@ def get_process(process_id: str):
     if meta_file.exists():
         meta = json.loads(meta_file.read_text())
 
-    has_knowledge = (pdir / "processes").exists() or (pdir / "SKILL.md").exists()
+    has_knowledge = (pdir / "processes").exists() or (pdir / "SKILL.md").exists() or (pdir / "knowledge.json").exists()
 
     return ProcessInfo(
         id=process_id,

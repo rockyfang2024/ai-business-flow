@@ -7,6 +7,7 @@ Supports all 30 providers from hermes-agent's provider registry.
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 from datetime import datetime
@@ -37,6 +38,28 @@ logger = logging.getLogger(__name__)
 
 # 内存中存储对话历史（生产环境换持久存储）
 _dialogue_history: dict[str, list[DialogueTurn]] = {}
+
+
+@router.get("/dialogue/{processId}/history")
+def get_dialogue_history(processId: str):
+    """获取指定业务流程的对话历史（从持久文件加载）"""
+    pdir = _process_dir(processId)
+    if not pdir.exists():
+        raise HTTPException(status_code=404, detail="Process not found")
+
+    history_file = pdir / "dialogue_history.json"
+    if not history_file.exists():
+        return {"history": [], "is_complete": False}
+
+    try:
+        with open(history_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return {
+            "history": data.get("history", []),
+            "is_complete": data.get("is_complete", False),
+        }
+    except Exception:
+        return {"history": [], "is_complete": False}
 
 
 def _process_dir(process_id: str) -> Path:
@@ -250,15 +273,23 @@ def dialogue梳理(body: DialogueRequest):
     if not pdir.exists():
         raise HTTPException(status_code=404, detail="Process not found")
 
-    # 初始化或追加对话历史
+    # 持久化对话历史：从文件加载（支持切换Tab后继续）
     history_key = body.process_id
-    if history_key not in _dialogue_history:
-        _dialogue_history[history_key] = []
+    history_file = pdir / "dialogue_history.json"
+
+    # 加载已有历史
+    chat_history: list[dict] = []
+    if history_file.exists():
+        try:
+            with open(history_file, "r", encoding="utf-8") as f:
+                chat_history = json.load(f).get("history", [])
+        except Exception:
+            chat_history = []
 
     # 构建消息列表（DialogueTurn uses role: user|assistant）
     messages = [{"role": "system", "content": DIALOGUE_SYSTEM_PROMPT}]
-    for turn in body.history:
-        messages.append({"role": turn.role, "content": turn.content})
+    for turn in chat_history:
+        messages.append({"role": turn["role"], "content": turn["content"]})
     messages.append({"role": "user", "content": body.message})
 
     # Resolve LLM config
@@ -323,8 +354,25 @@ def dialogue梳理(body: DialogueRequest):
         skill_md_content = f"# {pdir.name}\n\n用户通过对话梳理生成的业务流程文档。\n"
         (pdir / "SKILL.md").write_text(skill_md_content, encoding="utf-8")
 
-        # 清理历史
-        _dialogue_history[history_key] = []
+        # 保存知识结构到 knowledge.json（前端知识结构Tab展示用）
+        knowledge_file = pdir / "knowledge.json"
+        with open(knowledge_file, "w", encoding="utf-8") as f:
+            json.dump({
+                "is_complete": True,
+                "extracted_data": extracted_data,
+                "updated_at": datetime.now().isoformat(),
+            }, f, ensure_ascii=False, indent=2)
+
+        # 清理对话历史（重新开始）
+        if history_file.exists():
+            history_file.unlink()
+
+    else:
+        # 非完成状态：将本次对话追加到历史文件
+        chat_history.append({"role": "user", "content": body.message})
+        chat_history.append({"role": "assistant", "content": raw_reply})
+        with open(history_file, "w", encoding="utf-8") as f:
+            json.dump({"history": chat_history, "is_complete": False}, f, ensure_ascii=False)
 
     return DialogueResponse(reply=raw_reply, is_complete=is_complete, extracted_data=extracted_data)
 

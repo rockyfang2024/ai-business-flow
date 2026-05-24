@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { api_query } from "@/lib/api";
+import { api_query, api_dialogue } from "@/lib/api";
 import type { DialogueTurn } from "@/types";
 import styles from "./DialogueTab.module.css";
 
@@ -40,6 +40,22 @@ export default function DialogueTab({ processId, hasKnowledge }: Props) {
   useEffect(() => {
     setMode(hasKnowledge ? "query" : "dialogue");
   }, [hasKnowledge]);
+
+  // 组件挂载时从后端加载对话历史（支持切换Tab后继续）
+  useEffect(() => {
+    if (mode !== "dialogue") return; // 只在对话模式下加载
+    api_dialogue.getHistory(processId)
+      .then(({ history, is_complete }) => {
+        if (history.length > 0) {
+          setHistory(history);
+        }
+        if (is_complete) {
+          // 已完成时清空历史（对话已转为知识结构）
+          setHistory([]);
+        }
+      })
+      .catch(() => { /* ignore */ });
+  }, [processId, mode]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
