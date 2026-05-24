@@ -86,8 +86,6 @@ export default function DialogueTab({ processId, hasKnowledge }: Props) {
 
       if (!res.is_complete) {
         setHistory([...newHistory, { role: "assistant", content: res.reply }]);
-      } else {
-        setHistory([...newHistory, { role: "assistant", content: res.reply }]);
       }
     } catch (err) {
       const errMsg = `错误: ${err}`;
